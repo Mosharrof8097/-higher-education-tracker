@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Higher Education Tracker | Mosharrof</title>
+  <meta name="description" content="Personal higher education planning tracker — professors, universities, scholarships, emails, documents, and goals.">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- App CSS -->
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Favicon emoji -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+</head>
+<body>
+
+<div class="app-layout">
+
+  <!-- ── Sidebar ─────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-icon">🎓</span>
+      <h1>Higher Education<br>Tracker</h1>
+      <p>Your study command center</p>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-tab="dashboard"    onclick="switchTab('dashboard')">
+        <span class="nav-icon">🏠</span> Dashboard
+      </button>
+      <button class="nav-item" data-tab="professors"          onclick="switchTab('professors')">
+        <span class="nav-icon">🔬</span> Professor Outreach
+      </button>
+      <button class="nav-item" data-tab="universities"        onclick="switchTab('universities')">
+        <span class="nav-icon">🏛️</span> University Board
+      </button>
+      <button class="nav-item" data-tab="scholarships"        onclick="switchTab('scholarships')">
+        <span class="nav-icon">🏆</span> Scholarships
+      </button>
+      <button class="nav-item" data-tab="emails"              onclick="switchTab('emails')">
+        <span class="nav-icon">📧</span> Email Log
+      </button>
+      <button class="nav-item" data-tab="archive"             onclick="switchTab('archive')">
+        <span class="nav-icon">📁</span> Document Archive
+      </button>
+      <button class="nav-item" data-tab="checklist"           onclick="switchTab('checklist')">
+        <span class="nav-icon">✅</span> Checklist & Goals
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="sidebar-profile-btn" onclick="openProfileModal()">
+        👤 <span id="sidebar-profile-name">My Profile</span>
+      </button>
+      <div class="sidebar-footer-btns">
+        <button onclick="openSettings()">⚙️ Data Management</button>
+      </div>
+      <div id="settings-panel" class="hidden">
+        <p>Backup &amp; restore your data</p>
+        <button onclick="Storage.exportAll()">📤 Export Backup (JSON)</button>
+        <button onclick="triggerImport()">📥 Import Backup (JSON)</button>
+        <button onclick="Professors.exportCSV()">📊 Export Professors CSV</button>
+        <button onclick="Emails.exportCSV()">📊 Export Email Log CSV</button>
+        <button onclick="if(confirm('Clear ALL data? This cannot be undone!')) { Storage.clearAll(); location.reload(); }">🗑️ Clear All Data</button>
+        <input type="file" id="import-file" accept=".json" style="display:none">
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main content ─────────────────────────────────────── -->
+  <main class="main-content">
+
+    <!-- Dashboard Tab -->
+    <div id="tab-dashboard" class="tab-content">
+      <p style="color:var(--text-muted);padding:2rem;">Loading dashboard…</p>
+    </div>
+
+    <!-- Professor Outreach Tab -->
+    <div id="tab-professors" class="tab-content hidden">
+      <p style="color:var(--text-muted);padding:2rem;">Loading professor tracker…</p>
+    </div>
+
+    <!-- University Board Tab -->
+    <div id="tab-universities" class="tab-content hidden">
+      <p style="color:var(--text-muted);padding:2rem;">Loading university board…</p>
+    </div>
+
+    <!-- Scholarships Tab -->
+    <div id="tab-scholarships" class="tab-content hidden">
+      <p style="color:var(--text-muted);padding:2rem;">Loading scholarships…</p>
+    </div>
+
+    <!-- Email Log Tab -->
+    <div id="tab-emails" class="tab-content hidden">
+      <p style="color:var(--text-muted);padding:2rem;">Loading email log…</p>
+    </div>
+
+    <!-- Document Archive Tab -->
+    <div id="tab-archive" class="tab-content hidden">
+      <p style="color:var(--text-muted);padding:2rem;">Loading document archive…</p>
+    </div>
+
+    <!-- Checklist & Goals Tab -->
+    <div id="tab-checklist" class="tab-content hidden">
+      <p style="color:var(--text-muted);padding:2rem;">Loading checklist…</p>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!-- ── My Profile Modal ────────────────────────────────────── -->
+<div id="profile-modal" class="modal hidden">
+  <div class="modal-backdrop" onclick="closeProfileModal()"></div>
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>👤 My Profile & Scores</h3>
+      <button class="modal-close" onclick="closeProfileModal()">✕</button>
+    </div>
+    <div style="padding:0.75rem 1.5rem;background:var(--cream);font-size:0.8rem;color:var(--text-muted);">
+      Your profile is used by the <strong>Scholarship Eligibility Cross-Checker</strong> to automatically check if you qualify.
+    </div>
+    <form id="profile-form" onsubmit="saveProfile(event)">
+      <div class="form-grid">
+        <div class="form-group form-full">
+          <label>Your Full Name</label>
+          <input type="text" name="name" placeholder="e.g. Mosharrof Hossain">
+        </div>
+        <div class="form-group">
+          <label>Nationality</label>
+          <input type="text" name="nationality" placeholder="e.g. Bangladeshi">
+        </div>
+        <div class="form-group">
+          <label>Field of Study</label>
+          <input type="text" name="fieldOfStudy" placeholder="e.g. Water Resources / Hydrology">
+        </div>
+        <div class="form-group">
+          <label>Highest Degree Completed</label>
+          <select name="degree">
+            <option value="Bachelor">Bachelor's</option>
+            <option value="Master">Master's</option>
+            <option value="PhD">PhD</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>GPA (out of 4.0)</label>
+          <input type="number" name="gpa" step="0.01" min="0" max="4" placeholder="e.g. 3.75">
+        </div>
+        <div class="form-group">
+          <label>IELTS Score (0–9)</label>
+          <input type="number" name="ielts" step="0.5" min="0" max="9" placeholder="e.g. 7.0">
+        </div>
+        <div class="form-group">
+          <label>TOEFL Score</label>
+          <input type="number" name="toefl" min="0" max="120" placeholder="e.g. 95">
+        </div>
+        <div class="form-group">
+          <label>GRE Quant Score</label>
+          <input type="number" name="gre" min="130" max="170" placeholder="e.g. 160">
+        </div>
+        <div class="form-group">
+          <label>Work Experience (years)</label>
+          <input type="number" name="workExp" min="0" placeholder="e.g. 2">
+        </div>
+        <div class="form-group">
+          <label>Research Publications</label>
+          <input type="number" name="publications" min="0" placeholder="e.g. 1">
+        </div>
+        <div class="form-group form-full">
+          <label>Research Interests / Keywords</label>
+          <input type="text" name="researchInterests" placeholder="e.g. Groundwater, Hydrology, Water Quality, Remote Sensing">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeProfileModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Profile</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Scripts (order matters: db → storage → modules → app) -->
+<script src="js/db.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/professors.js"></script>
+<script src="js/universities.js"></script>
+<script src="js/scholarships.js"></script>
+<script src="js/emails.js"></script>
+<script src="js/archive.js"></script>
+<script src="js/checklist.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
