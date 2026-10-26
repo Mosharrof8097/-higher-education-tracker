@@ -126,16 +126,16 @@ const Checklist = {
     });
     return Object.entries(grouped).map(([cat, catItems]) => `
       <div class="checklist-group">
-        <div class="group-label">${cat}</div>
+        <div class="group-label">${esc(cat)}</div>
         ${catItems.map(item => `
           <div class="checklist-item ${item.done ? 'done' : ''}">
             <label class="check-label">
-              <input type="checkbox" ${item.done ? 'checked' : ''} onchange="Checklist.toggleItem('${item.id}', this.checked)">
-              <span class="check-text">${item.text}</span>
+              <input type="checkbox" ${item.done ? 'checked' : ''} onchange="Checklist.toggleItem('${esc(item.id)}', this.checked)">
+              <span class="check-text">${esc(item.text)}</span>
             </label>
             <div class="check-actions">
-              ${item.dueDate ? `<span class="check-date">${new Date(item.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>` : ''}
-              <button class="btn-icon btn-icon-danger" onclick="Checklist.deleteItem('${item.id}')">✕</button>
+              ${item.dueDate ? `<span class="check-date">${fmtDate(item.dueDate, false)}</span>` : ''}
+              <button class="btn-icon btn-icon-danger" onclick="Checklist.deleteItem('${esc(item.id)}')">✕</button>
             </div>
           </div>`).join('')}
       </div>`).join('');
@@ -145,22 +145,22 @@ const Checklist = {
     if (!goals.length) return '';
     return goals.map(g => {
       const today = new Date();
-      const daysLeft = g.targetDate ? Math.ceil((new Date(g.targetDate) - today) / 86400000) : null;
+      const daysLeft = g.targetDate ? daysUntil(g.targetDate) : null;
       return `
         <div class="goal-item ${g.done ? 'done' : ''}">
           <div class="goal-top">
             <label class="check-label">
-              <input type="checkbox" ${g.done ? 'checked' : ''} onchange="Checklist.toggleGoal('${g.id}', this.checked)">
-              <span class="check-text"><strong>${g.title}</strong></span>
+              <input type="checkbox" ${g.done ? 'checked' : ''} onchange="Checklist.toggleGoal('${esc(g.id)}', this.checked)">
+              <span class="check-text"><strong>${esc(g.title)}</strong></span>
             </label>
-            <span class="badge ${g.priority === 'High' ? 'badge-red' : g.priority === 'Low' ? 'badge-gray' : 'badge-yellow'}">${g.priority || 'Medium'}</span>
+            <span class="badge ${g.priority === 'High' ? 'badge-red' : g.priority === 'Low' ? 'badge-gray' : 'badge-yellow'}">${esc(g.priority || 'Medium')}</span>
           </div>
-          ${g.notes ? `<p class="goal-notes">${g.notes}</p>` : ''}
+          ${g.notes ? `<p class="goal-notes">${esc(g.notes)}</p>` : ''}
           <div class="goal-footer">
-            ${g.targetDate ? `<span class="check-date ${daysLeft !== null && daysLeft < 14 ? 'text-urgent' : ''}">📅 ${new Date(g.targetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}${daysLeft !== null ? ` · ${daysLeft}d` : ''}</span>` : ''}
+            ${g.targetDate ? `<span class="check-date ${daysLeft !== null && daysLeft < 14 ? 'text-urgent' : ''}">📅 ${fmtDate(g.targetDate)}${daysLeft !== null ? ` · ${daysLeft}d` : ''}</span>` : ''}
             <div style="display:flex;gap:0.5rem;">
-              <button class="btn-icon" onclick="Checklist.openGoalModal('${g.id}')">✏️</button>
-              <button class="btn-icon btn-icon-danger" onclick="Checklist.deleteGoal('${g.id}')">🗑️</button>
+              <button class="btn-icon" onclick="Checklist.openGoalModal('${esc(g.id)}')">✏️</button>
+              <button class="btn-icon btn-icon-danger" onclick="Checklist.deleteGoal('${esc(g.id)}')">🗑️</button>
             </div>
           </div>
         </div>`;
@@ -172,9 +172,9 @@ const Checklist = {
     return docs.map(d => `
       <div class="doc-item ${d.done ? 'done' : ''}">
         <label class="check-label">
-          <input type="checkbox" ${d.done ? 'checked' : ''} onchange="Checklist.toggleDoc('${d.id}', this.checked)">
-          <span class="doc-icon">${d.icon}</span>
-          <span class="check-text">${d.name}</span>
+          <input type="checkbox" ${d.done ? 'checked' : ''} onchange="Checklist.toggleDoc('${esc(d.id)}', this.checked)">
+          <span class="doc-icon">${esc(d.icon)}</span>
+          <span class="check-text">${esc(d.name)}</span>
         </label>
         <span class="doc-status ${d.done ? 'text-green' : 'text-muted'}">${d.done ? '✅ Ready' : '⏳ Pending'}</span>
       </div>`).join('');

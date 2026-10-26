@@ -159,7 +159,7 @@ const Professors = {
       const matchResponse = this.filterResponse === 'All' || p.response === this.filterResponse;
       const matchFunding = this.filterFunding === 'All' || p.funding === this.filterFunding;
       const q = this.searchQuery.toLowerCase();
-      const matchSearch = !q || p.professor.toLowerCase().includes(q) || p.university.toLowerCase().includes(q) || (p.researchArea || '').toLowerCase().includes(q);
+      const matchSearch = !q || (p.professor || '').toLowerCase().includes(q) || (p.university || '').toLowerCase().includes(q) || (p.researchArea || '').toLowerCase().includes(q);
       return matchStatus && matchResponse && matchFunding && matchSearch;
     });
 
@@ -167,17 +167,17 @@ const Professors = {
 
     return filtered.map(p => `
       <tr>
-        <td><strong>${p.university}</strong>${p.country ? `<br><small>${p.country}</small>` : ''}</td>
-        <td>${p.researchArea || '—'}</td>
-        <td>${p.professor}${p.email ? `<br><a href="mailto:${p.email}" class="table-link">✉️ Email</a>` : ''}</td>
-        <td>${p.contacted ? new Date(p.contacted).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</td>
-        <td><span class="badge ${this.responseClass(p.response)}">${p.response || 'Awaiting'}</span></td>
-        <td><span class="badge badge-navy">${p.funding || 'Unknown'}</span></td>
-        <td><span class="badge ${this.statusClass(p.status)}">${p.status || '—'}</span></td>
-        <td class="notes-cell">${p.notes || '—'}</td>
+        <td><strong>${esc(p.university)}</strong>${p.country ? `<br><small>${esc(p.country)}</small>` : ''}</td>
+        <td>${esc(p.researchArea || '—')}</td>
+        <td>${esc(p.professor)}${p.email ? `<br><a href="mailto:${esc(p.email)}" class="table-link">✉️ Email</a>` : ''}</td>
+        <td>${p.contacted ? fmtDate(p.contacted) : '—'}</td>
+        <td><span class="badge ${this.responseClass(p.response)}">${esc(p.response || 'Awaiting')}</span></td>
+        <td><span class="badge badge-navy">${esc(p.funding || 'Unknown')}</span></td>
+        <td><span class="badge ${this.statusClass(p.status)}">${esc(p.status || '—')}</span></td>
+        <td class="notes-cell">${esc(p.notes || '—')}</td>
         <td class="action-cell">
-          <button class="btn-icon" title="Edit" onclick="Professors.openModal('${p.id}')">✏️</button>
-          <button class="btn-icon btn-icon-danger" title="Delete" onclick="Professors.delete('${p.id}')">🗑️</button>
+          <button class="btn-icon" title="Edit" onclick="Professors.openModal('${esc(p.id)}')">✏️</button>
+          <button class="btn-icon btn-icon-danger" title="Delete" onclick="Professors.delete('${esc(p.id)}')">🗑️</button>
         </td>
       </tr>`).join('');
   },
@@ -274,7 +274,7 @@ const Professors = {
     const profs = Storage.getProfessors();
     if (!profs.length) { showToast('No data to export.', 'info'); return; }
     const headers = ['University', 'Country', 'Research Area', 'Professor', 'Email', 'Contacted', 'Response', 'Funding', 'Status', 'Lab', 'Notes'];
-    const rows = profs.map(p => [p.university, p.country, p.researchArea, p.professor, p.email, p.contacted, p.response, p.funding, p.status, p.lab, p.notes].map(v => `"${(v || '').replace(/"/g, '""')}"`));
+    const rows = profs.map(p => [p.university, p.country, p.researchArea, p.professor, p.email, p.contacted, p.response, p.funding, p.status, p.lab, p.notes].map(csvCell));
     const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);

@@ -126,8 +126,8 @@ const Scholarships = {
                 <div class="req-checks">
                   ${['SOP', 'CV/Resume', 'LOR', 'Transcript', 'IELTS/TOEFL', 'GRE', 'Research Proposal', 'Writing Sample', 'Passport Copy', 'Financial Statement', 'Work Experience Letter', 'Birth Certificate'].map(r => `
                     <label class="req-check-label">
-                      <input type="checkbox" name="req_docs" value="${r}">
-                      ${r}
+                      <input type="checkbox" name="req_docs" value="${esc(r)}">
+                      ${esc(r)}
                     </label>`).join('')}
                 </div>
               </div>
@@ -170,44 +170,44 @@ const Scholarships = {
 
     const today = new Date();
     return filtered.map(s => {
-      const daysLeft = s.deadline ? Math.ceil((new Date(s.deadline) - today) / 86400000) : null;
+      const daysLeft = s.deadline ? daysUntil(s.deadline) : null;
       return `
         <div class="sch-card">
           <div class="sch-card-header">
             <div>
-              <h3 class="sch-name">${s.name}</h3>
-              <p class="sch-funder">🏛️ ${s.funder || '—'} · 📍 ${s.country || '—'}</p>
+              <h3 class="sch-name">${esc(s.name)}</h3>
+              <p class="sch-funder">🏛️ ${esc(s.funder || '—')} · 📍 ${esc(s.country || '—')}</p>
             </div>
-            <span class="badge ${this.statusClass(s.appStatus)}">${s.appStatus || 'Not Started'}</span>
+            <span class="badge ${this.statusClass(s.appStatus)}">${esc(s.appStatus || 'Not Started')}</span>
           </div>
 
           <div class="sch-meta-row">
-            <span class="sch-funding-badge">${this.fundingIcon(s.fundingType)} ${s.fundingType || '—'}</span>
-            ${s.amount ? `<span class="sch-amount">💰 ${s.amount}</span>` : ''}
+            <span class="sch-funding-badge">${this.fundingIcon(s.fundingType)} ${esc(s.fundingType || '—')}</span>
+            ${s.amount ? `<span class="sch-amount">💰 ${esc(s.amount)}</span>` : ''}
           </div>
 
           ${s.deadline ? `
             <div class="deadline-item" style="margin-top:0.6rem;">
-              <span>📅 Deadline: <strong>${new Date(s.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</strong></span>
+              <span>📅 Deadline: <strong>${fmtDate(s.deadline)}</strong></span>
               ${daysLeft !== null ? `<span class="deadline-days ${daysLeft <= 30 ? 'urgent' : daysLeft <= 60 ? 'warning' : 'safe'}">${daysLeft}d left</span>` : ''}
             </div>` : ''}
 
           <!-- Requirements summary -->
           <div class="sch-reqs">
-            ${s.reqIelts ? `<span class="req-pill">IELTS ≥ ${s.reqIelts}</span>` : ''}
-            ${s.reqGpa ? `<span class="req-pill">GPA ≥ ${s.reqGpa}</span>` : ''}
-            ${s.reqWorkExp ? `<span class="req-pill">Work exp ≥ ${s.reqWorkExp}yr</span>` : ''}
-            ${s.reqDegree ? `<span class="req-pill">${s.reqDegree}'s deg.</span>` : ''}
-            ${(s.reqDocs || []).map(d => `<span class="req-pill">${d}</span>`).join('')}
+            ${s.reqIelts ? `<span class="req-pill">IELTS ≥ ${esc(s.reqIelts)}</span>` : ''}
+            ${s.reqGpa ? `<span class="req-pill">GPA ≥ ${esc(s.reqGpa)}</span>` : ''}
+            ${s.reqWorkExp ? `<span class="req-pill">Work exp ≥ ${esc(s.reqWorkExp)}yr</span>` : ''}
+            ${s.reqDegree ? `<span class="req-pill">${esc(s.reqDegree)}'s deg.</span>` : ''}
+            ${(s.reqDocs || []).map(d => `<span class="req-pill">${esc(d)}</span>`).join('')}
           </div>
 
-          ${s.notes ? `<p class="uni-notes">${s.notes}</p>` : ''}
+          ${s.notes ? `<p class="uni-notes">${esc(s.notes)}</p>` : ''}
 
           <div class="sch-card-footer">
-            ${s.website ? `<a href="${s.website}" target="_blank" class="btn btn-sm btn-outline">🌐 Website</a>` : ''}
-            <button class="btn btn-sm btn-teal" onclick="Scholarships.checkEligibility('${s.id}')">🔍 Check Eligibility</button>
-            <button class="btn btn-sm btn-outline" onclick="Scholarships.openModal('${s.id}')">✏️ Edit</button>
-            <button class="btn btn-sm btn-danger" onclick="Scholarships.delete('${s.id}')">🗑️</button>
+            ${s.website ? `<a href="${safeUrl(s.website)}" target="_blank" class="btn btn-sm btn-outline">🌐 Website</a>` : ''}
+            <button class="btn btn-sm btn-teal" onclick="Scholarships.checkEligibility('${esc(s.id)}')">🔍 Check Eligibility</button>
+            <button class="btn btn-sm btn-outline" onclick="Scholarships.openModal('${esc(s.id)}')">✏️ Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="Scholarships.delete('${esc(s.id)}')">🗑️</button>
           </div>
         </div>`;
     }).join('');
@@ -267,7 +267,7 @@ const Scholarships = {
       const userDeg = degreeMap[profile.degree] || 0;
       const reqDeg = degreeMap[sch.reqDegree] || 0;
       checks.push({
-        label: `${sch.reqDegree}'s degree required`,
+        label: `${esc(sch.reqDegree)}'s degree required`,
         status: userDeg >= reqDeg ? 'pass' : 'fail',
         detail: profile.degree ? `Your degree: ${profile.degree}` : 'Not set in profile',
       });
@@ -288,7 +288,7 @@ const Scholarships = {
         label: reqDoc,
         status: found ? (isFinal ? 'pass' : 'partial') : 'fail',
         detail: found
-          ? (isFinal ? `✅ Uploaded: "${found.name}" (Final)` : `📝 Uploaded: "${found.name}" (${found.status || 'Draft'} — mark as Final when ready)`)
+          ? (isFinal ? `✅ Uploaded: "${esc(found.name)}" (Final)` : `📝 Uploaded: "${esc(found.name)}" (${esc(found.status || 'Draft')} — mark as Final when ready)`)
           : '❌ Not uploaded in your Document Archive',
       });
     });
@@ -300,7 +300,7 @@ const Scholarships = {
 
     document.getElementById('crosscheck-content').innerHTML = `
       <div class="modal-header">
-        <h3>🔍 Eligibility Check — ${sch.name}</h3>
+        <h3>🔍 Eligibility Check — ${esc(sch.name)}</h3>
         <button class="modal-close" onclick="document.getElementById('crosscheck-panel').classList.add('hidden')">✕</button>
       </div>
       <div style="padding:1.5rem;">
@@ -334,7 +334,7 @@ const Scholarships = {
             <strong>🎯 What you need to do next:</strong>
             <ul>
               ${[...checks, ...docChecks].filter(c => c.status !== 'pass').map(c =>
-                `<li>${c.status === 'fail' ? '❌' : '📝'} <strong>${c.label}</strong>: ${c.detail}</li>`
+                `<li>${c.status === 'fail' ? '❌' : '📝'} <strong>${esc(c.label)}</strong>: ${esc(c.detail)}</li>`
               ).join('')}
             </ul>
           </div>` : ''}
@@ -356,8 +356,8 @@ const Scholarships = {
       <div class="check-row ${classes[c.status]}">
         <span class="check-row-icon">${icons[c.status]}</span>
         <div>
-          <div class="check-row-label">${c.label}</div>
-          <div class="check-row-detail">${c.detail}</div>
+          <div class="check-row-label">${esc(c.label)}</div>
+          <div class="check-row-detail">${esc(c.detail)}</div>
         </div>
       </div>`;
   },
@@ -379,7 +379,7 @@ const Scholarships = {
           const el = form.elements[k]; if (el) el.value = s[k] || '';
         });
         (s.reqDocs || []).forEach(r => {
-          const cb = form.querySelector(`input[value="${r}"]`);
+          const cb = form.querySelector(`input[value="${esc(r)}"]`);
           if (cb) cb.checked = true;
         });
       }

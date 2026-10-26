@@ -184,31 +184,31 @@ const Emails = {
           <div class="email-type-icon">${this.typeIcon(e.type)}</div>
           <div class="email-card-body">
             <div class="email-card-header-row">
-              <strong class="email-to">${e.toName}</strong>
-              ${e.toEmail ? `<a href="mailto:${e.toEmail}" class="table-link" style="font-size:0.75rem;">✉️ ${e.toEmail}</a>` : ''}
-              <span class="badge ${this.typeClass(e.type)}">${e.type}</span>
+              <strong class="email-to">${esc(e.toName)}</strong>
+              ${e.toEmail ? `<a href="mailto:${esc(e.toEmail)}" class="table-link" style="font-size:0.75rem;">✉️ ${esc(e.toEmail)}</a>` : ''}
+              <span class="badge ${this.typeClass(e.type)}">${esc(e.type)}</span>
               ${e.followUp === 'Yes' ? `<span class="badge badge-red">⚠️ Follow-up needed</span>` : ''}
             </div>
-            ${e.subject ? `<div class="email-subject">"${e.subject}"</div>` : ''}
+            ${e.subject ? `<div class="email-subject">"${esc(e.subject)}"</div>` : ''}
             <div class="email-meta-row">
-              <span>📤 Sent: <strong>${e.dateSent ? new Date(e.dateSent).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</strong></span>
-              <span class="badge ${this.replyClass(e.replyStatus)}">${e.replyStatus || 'Awaiting'}</span>
-              ${e.replyDate ? `<span>📥 Reply: <strong>${new Date(e.replyDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</strong></span>` : ''}
-              ${e.followUpDate && e.followUp === 'Yes' ? `<span style="color:var(--red);">📅 Follow-up: ${new Date(e.followUpDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>` : ''}
+              <span>📤 Sent: <strong>${e.dateSent ? fmtDate(e.dateSent) : '—'}</strong></span>
+              <span class="badge ${this.replyClass(e.replyStatus)}">${esc(e.replyStatus || 'Awaiting')}</span>
+              ${e.replyDate ? `<span>📥 Reply: <strong>${fmtDate(e.replyDate)}</strong></span>` : ''}
+              ${e.followUpDate && e.followUp === 'Yes' ? `<span style="color:var(--red);">📅 Follow-up: ${fmtDate(e.followUpDate, false)}</span>` : ''}
             </div>
 
             <!-- Docs row -->
-            ${e.docsAttached ? `<div class="email-docs-row"><span class="docs-label">📎 Sent:</span> ${e.docsAttached.split(',').map(d => `<span class="doc-chip">${d.trim()}</span>`).join('')}</div>` : ''}
-            ${e.docsReceived ? `<div class="email-docs-row"><span class="docs-label">📬 Received:</span> ${e.docsReceived.split(',').map(d => `<span class="doc-chip doc-chip-green">${d.trim()}</span>`).join('')}</div>` : ''}
+            ${e.docsAttached ? `<div class="email-docs-row"><span class="docs-label">📎 Sent:</span> ${e.docsAttached.split(',').map(d => `<span class="doc-chip">${esc(d.trim())}</span>`).join('')}</div>` : ''}
+            ${e.docsReceived ? `<div class="email-docs-row"><span class="docs-label">📬 Received:</span> ${e.docsReceived.split(',').map(d => `<span class="doc-chip doc-chip-green">${esc(d.trim())}</span>`).join('')}</div>` : ''}
 
             <!-- Notes -->
-            ${e.sentNotes ? `<div class="email-note"><span class="note-label">📤 My email:</span> ${e.sentNotes}</div>` : ''}
-            ${e.replyNotes ? `<div class="email-note"><span class="note-label">📥 Their reply:</span> ${e.replyNotes}</div>` : ''}
+            ${e.sentNotes ? `<div class="email-note"><span class="note-label">📤 My email:</span> ${esc(e.sentNotes)}</div>` : ''}
+            ${e.replyNotes ? `<div class="email-note"><span class="note-label">📥 Their reply:</span> ${esc(e.replyNotes)}</div>` : ''}
           </div>
         </div>
         <div class="email-card-actions">
-          <button class="btn-icon" title="Edit" onclick="Emails.openModal('${e.id}')">✏️</button>
-          <button class="btn-icon btn-icon-danger" title="Delete" onclick="Emails.delete('${e.id}')">🗑️</button>
+          <button class="btn-icon" title="Edit" onclick="Emails.openModal('${esc(e.id)}')">✏️</button>
+          <button class="btn-icon btn-icon-danger" title="Delete" onclick="Emails.delete('${esc(e.id)}')">🗑️</button>
         </div>
       </div>`).join('');
   },
@@ -293,7 +293,7 @@ const Emails = {
     const emails = Storage.getEmails();
     if (!emails.length) { showToast('No data to export.', 'info'); return; }
     const headers = ['To Name', 'To Email', 'Type', 'Date Sent', 'Subject', 'Docs Attached', 'Reply Status', 'Reply Date', 'Docs Received', 'Follow-up', 'Notes'];
-    const rows = emails.map(e => [e.toName, e.toEmail, e.type, e.dateSent, e.subject, e.docsAttached, e.replyStatus, e.replyDate, e.docsReceived, e.followUp, e.sentNotes].map(v => `"${(v || '').replace(/"/g, '""')}"`));
+    const rows = emails.map(e => [e.toName, e.toEmail, e.type, e.dateSent, e.subject, e.docsAttached, e.replyStatus, e.replyDate, e.docsReceived, e.followUp, e.sentNotes].map(csvCell));
     const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);

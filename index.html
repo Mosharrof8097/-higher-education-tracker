@@ -14,6 +14,11 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
+  <!-- Supabase client (pinned version + integrity hash) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"
+          integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R"
+          crossorigin="anonymous"></script>
+
   <!-- App CSS -->
   <link rel="stylesheet" href="css/style.css">
 
@@ -21,6 +26,9 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
 </head>
 <body>
+
+<!-- Sign-in / sign-up screen (shown by Auth.boot when cloud sync is configured) -->
+<div id="auth-screen" class="auth-screen hidden"></div>
 
 <div class="app-layout">
 
@@ -51,12 +59,17 @@
       <button class="nav-item" data-tab="archive"             onclick="switchTab('archive')">
         <span class="nav-icon">📁</span> Document Archive
       </button>
+      <button class="nav-item" data-tab="degree"              onclick="switchTab('degree')">
+        <span class="nav-icon">🎓</span> My Degree
+      </button>
       <button class="nav-item" data-tab="checklist"           onclick="switchTab('checklist')">
         <span class="nav-icon">✅</span> Checklist & Goals
       </button>
     </nav>
 
     <div class="sidebar-footer">
+      <div id="sync-status" class="sync-chip sync-local">💾 Local only (this device)</div>
+      <div id="account-box" class="account-box"></div>
       <button class="sidebar-profile-btn" onclick="openProfileModal()">
         👤 <span id="sidebar-profile-name">My Profile</span>
       </button>
@@ -69,7 +82,9 @@
         <button onclick="triggerImport()">📥 Import Backup (JSON)</button>
         <button onclick="Professors.exportCSV()">📊 Export Professors CSV</button>
         <button onclick="Emails.exportCSV()">📊 Export Email Log CSV</button>
-        <button onclick="if(confirm('Clear ALL data? This cannot be undone!')) { Storage.clearAll(); location.reload(); }">🗑️ Clear All Data</button>
+        <button onclick="removeSampleData()">🧹 Remove Demo Sample Data</button>
+        <button onclick="clearLocalData()">🗑️ Clear Data On This Device</button>
+        <button id="delete-account-btn" class="hidden" onclick="Auth.deleteAccount()">⚠️ Delete My Account &amp; Cloud Data</button>
         <input type="file" id="import-file" accept=".json" style="display:none">
       </div>
     </div>
@@ -106,6 +121,11 @@
     <!-- Document Archive Tab -->
     <div id="tab-archive" class="tab-content hidden">
       <p style="color:var(--text-muted);padding:2rem;">Loading document archive…</p>
+    </div>
+
+    <!-- My Degree Tab -->
+    <div id="tab-degree" class="tab-content hidden">
+      <p style="color:var(--text-muted);padding:2rem;">Loading degree tracker…</p>
     </div>
 
     <!-- Checklist & Goals Tab -->
@@ -176,6 +196,26 @@
           <label>Research Publications</label>
           <input type="number" name="publications" min="0" placeholder="e.g. 1">
         </div>
+        <div class="form-group">
+          <label>Degree I am pursuing</label>
+          <select name="target">
+            <option value="">— choose —</option>
+            <option value="MS">Master's (MS / MSc)</option>
+            <option value="PhD">PhD</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Where am I now?</label>
+          <select name="stage">
+            <option value="">— choose —</option>
+            <option value="Applying">Applying</option>
+            <option value="Enrolled">Enrolled in the program</option>
+          </select>
+        </div>
+        <div class="form-group form-full">
+          <label>Target intake / start term</label>
+          <input type="text" name="intake" placeholder="e.g. Fall 2027">
+        </div>
         <div class="form-group form-full">
           <label>Research Interests / Keywords</label>
           <input type="text" name="researchInterests" placeholder="e.g. Groundwater, Hydrology, Water Quality, Remote Sensing">
@@ -189,9 +229,55 @@
   </div>
 </div>
 
-<!-- Scripts (order matters: db → storage → modules → app) -->
+<!-- ── First-run setup ─────────────────────────────────────── -->
+<div id="onboarding-modal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-box">
+    <div class="modal-header"><h3>🎓 Let's set up your journey</h3></div>
+    <form onsubmit="saveOnboarding(event)">
+      <div class="form-grid">
+        <div class="form-group form-full">
+          <label>Your name</label>
+          <input type="text" name="name" placeholder="Full name">
+        </div>
+        <div class="form-group">
+          <label>I am going for</label>
+          <select name="target" required>
+            <option value="MS">Master's (MS / MSc)</option>
+            <option value="PhD">PhD</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Right now I am</label>
+          <select name="stage" required>
+            <option value="Applying">Applying</option>
+            <option value="Enrolled">Already enrolled</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Target intake / start term</label>
+          <input type="text" name="intake" placeholder="e.g. Fall 2027">
+        </div>
+        <div class="form-group">
+          <label>Field of study</label>
+          <input type="text" name="fieldOfStudy" placeholder="e.g. Hydrology">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="skipOnboarding()">Skip for now</button>
+        <button type="submit" class="btn btn-primary">Start tracking</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Scripts (order matters: config → db → storage → sync → files → auth → modules → app) -->
+<script src="js/config.js"></script>
 <script src="js/db.js"></script>
 <script src="js/storage.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/files.js"></script>
+<script src="js/auth.js"></script>
 <script src="js/dashboard.js"></script>
 <script src="js/professors.js"></script>
 <script src="js/universities.js"></script>
@@ -199,6 +285,7 @@
 <script src="js/emails.js"></script>
 <script src="js/archive.js"></script>
 <script src="js/checklist.js"></script>
+<script src="js/degree.js"></script>
 <script src="js/app.js"></script>
 
 </body>

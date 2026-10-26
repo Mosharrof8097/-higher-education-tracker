@@ -2,6 +2,46 @@
 // app.js — Main app: routing, init, profile modal, sample data
 // ============================================================
 
+// ── HTML escaping — use on EVERY user-provided value in a template ──
+function esc(v) {
+  return String(v === undefined || v === null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// http(s) links only — blocks javascript:/data: URLs saved in a record.
+function safeUrl(u) {
+  const v = String(u || '').trim();
+  return /^https?:\/\//i.test(v) ? esc(v) : '#';
+}
+
+// CSV cell: quote, and defuse spreadsheet formulas (=, +, -, @ at the start).
+function csvCell(v) {
+  let t = String(v === undefined || v === null ? '' : v);
+  if (/^[=+\-@\t\r]/.test(t)) t = "'" + t;
+  return `"${t.replace(/"/g, '""')}"`;
+}
+
+// ── Dates: 'YYYY-MM-DD' strings are LOCAL calendar days ───────
+// (new Date('2026-12-15') is UTC midnight, which shows the wrong day
+//  and gives off-by-one "days left" in timezones behind UTC.)
+function parseDate(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ''));
+  return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+}
+function daysUntil(s) {
+  const d = parseDate(s);
+  if (!d) return null;
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  return Math.round((d - t) / 86400000);
+}
+function fmtDate(s, withYear = true) {
+  const d = parseDate(s);
+  if (!d) return '—';
+  return d.toLocaleDateString('en-US', withYear ? { month: 'short', day: 'numeric', year: 'numeric' } : { month: 'short', day: 'numeric' });
+}
+function uid(prefix) { return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`; }
+
 // ── Global toast ─────────────────────────────────────────────
 function showToast(message, type = 'info') {
   const container = document.getElementById('toast-container');
@@ -10,10 +50,11 @@ function showToast(message, type = 'info') {
   toast.textContent = message;
   container.appendChild(toast);
   setTimeout(() => toast.classList.add('show'), 10);
+  // Errors stay long enough to actually be read (e.g. "storage full").
   setTimeout(() => {
     toast.classList.remove('show');
     setTimeout(() => toast.remove(), 300);
-  }, 3000);
+  }, type === 'error' ? 8000 : 3000);
 }
 
 // ── Tab routing ───────────────────────────────────────────────
@@ -34,6 +75,7 @@ function switchTab(tab) {
     case 'scholarships': Scholarships.render(); break;
     case 'emails':       Emails.render(); break;
     case 'archive':      Archive.render(); break;
+    case 'degree':       Degree.render(); break;
     case 'checklist':    Checklist.render(); break;
   }
 }
@@ -42,7 +84,7 @@ function switchTab(tab) {
 function openProfileModal() {
   const profile = Storage.getProfile();
   const form = document.getElementById('profile-form');
-  ['name','nationality','fieldOfStudy','degree','gpa','ielts','toefl','gre','workExp','publications','researchInterests'].forEach(k => {
+  ['name','nationality','fieldOfStudy','degree','gpa','ielts','toefl','gre','workExp','publications','researchInterests','target','stage','intake'].forEach(k => {
     const el = form.elements[k];
     if (el) el.value = profile[k] || '';
   });
@@ -57,6 +99,7 @@ function saveProfile(e) {
   e.preventDefault();
   const form = e.target;
   const data = {
+    ...Storage.getProfile(),          // keep journey fields (target, stage, intake…)
     name: form.name.value.trim(),
     nationality: form.nationality.value.trim(),
     fieldOfStudy: form.fieldOfStudy.value.trim(),
@@ -68,6 +111,9 @@ function saveProfile(e) {
     workExp: form.workExp.value,
     publications: form.publications.value,
     researchInterests: form.researchInterests.value.trim(),
+    target: form.target.value,
+    stage: form.stage.value,
+    intake: form.intake.value.trim(),
   };
   Storage.setProfile(data);
   closeProfileModal();
@@ -83,107 +129,92 @@ function updateSidebarProfile(profile) {
 // ── Settings panel ────────────────────────────────────────────
 function openSettings() {
   document.getElementById('settings-panel').classList.toggle('hidden');
+  document.getElementById('delete-account-btn').classList.toggle('hidden', !Auth.user);
+}
+
+function clearLocalData() {
+  if (Auth.user) {
+    return alert('You are signed in, so your data is stored in your account and would simply re-download.\n\nTo erase it for good use "Delete My Account & Cloud Data".');
+  }
+  if (confirm('Clear ALL data stored in this browser? This cannot be undone!')) {
+    Storage.clearAll();
+    location.reload();
+  }
 }
 function triggerImport() {
   document.getElementById('import-file').click();
 }
 
-// ── Sample data (runs once per data type on first load) ──────
-function loadSampleData() {
+// ── Remove demo sample rows left over from the old version ────
+function isSample(r) { return r && /_s\d+$/.test(String(r.id)); }
 
-  // Only seed professors if empty
-  if (!Storage.getProfessors().length) {
-    Storage.setProfessors([
-      { id: 'p_s1', university: 'State Univ.', country: 'USA', researchArea: 'ML / Vision', professor: 'Dr. R. Lee', email: '', contacted: '2024-09-12', response: 'Replied', funding: 'RA', status: 'In talks', lab: 'Vision & AI Lab', notes: 'Very positive response. Discussed research alignment.' },
-      { id: 'p_s2', university: 'Tech Inst.', country: 'USA', researchArea: 'Robotics', professor: 'Dr. A. Khan', email: '', contacted: '2024-09-15', response: 'Awaiting', funding: 'TA', status: 'Follow up', lab: 'Robotics Lab', notes: 'No reply yet. Follow up after 2 weeks.' },
-      { id: 'p_s3', university: 'City Univ.', country: 'Canada', researchArea: 'NLP', professor: 'Dr. M. Osei', email: '', contacted: '2024-09-18', response: 'No Reply', funding: 'Unknown', status: 'Follow up', lab: 'Language AI Group', notes: 'Second email sent.' },
-      { id: 'p_s4', university: 'North Univ.', country: 'UK', researchArea: 'Data Science', professor: 'Dr. P. Silva', email: '', contacted: '2024-09-21', response: 'Replied', funding: 'Grant', status: 'Promising', lab: 'Data Science Centre', notes: 'Excellent funding. Priority application.' },
-    ]);
-  }
+function countSamples() {
+  return ['professors','universities','scholarships','emails','goals','checklist']
+    .reduce((n, k) => n + (Storage.get(Storage.KEYS[k]) || []).filter(isSample).length, 0);
+}
 
-  // Only seed universities if empty
-  if (!Storage.getUniversities().length) {
-    Storage.setUniversities([
-      { id: 'u_s1', name: 'State University', country: 'USA', program: 'PhD in Computer Science', duration: '4-5 years', deadline: '2025-12-15', appStatus: 'In Progress', tuition: 'Full Funding (RA)', website: '', portalUrl: '', ielts: '7.0', gre: 'Yes', lorCount: '3', requirements: ['SOP', 'CV/Resume', 'LOR'], notes: 'Top choice.' },
-      { id: 'u_s2', name: 'North University', country: 'UK', program: 'PhD in Data Science', duration: '3-4 years', deadline: '2025-01-31', appStatus: 'Not Started', tuition: 'Research Grant', website: '', portalUrl: '', ielts: '6.5', gre: 'No', lorCount: '2', requirements: ['SOP'], notes: 'Dr. P. Silva responded positively.' },
-    ]);
-  }
+function removeSampleData() {
+  const n = countSamples();
+  if (!n) return showToast('No sample data found.', 'info');
+  if (!confirm(`Remove ${n} demo sample record(s)? Your own entries are kept.`)) return;
+  ['professors','universities','scholarships','emails','goals','checklist'].forEach(k => {
+    const key = Storage.KEYS[k];
+    const list = Storage.get(key) || [];
+    if (list.some(isSample)) Storage.set(key, list.filter(r => !isSample(r)));
+  });
+  showToast('🧹 Sample data removed.', 'success');
+  switchTab(currentTab);
+}
 
-  // Only seed scholarships if empty (NEW)
-  if (!Storage.getScholarships().length) {
-    Storage.setScholarships([
-      {
-        id: 'sch_s1', name: 'Chevening Scholarship 2025', funder: 'UK Government (FCDO)', country: 'UK',
-        fundingType: 'Full Funding', amount: '£18,000/yr + tuition + flights',
-        deadline: '2025-11-05', appStatus: 'Not Started',
-        website: 'https://www.chevening.org',
-        reqIelts: '6.5', reqGpa: '3.0', reqWorkExp: '2', reqDegree: 'Bachelor',
-        reqDocs: ['SOP', 'CV/Resume', 'LOR', 'Transcript', 'IELTS/TOEFL', 'Passport Copy'],
-        otherCriteria: 'Must be a citizen of an eligible Chevening country. Must have 2+ years work experience.',
-        notes: 'One of the most prestigious scholarships. High competition.',
-      },
-      {
-        id: 'sch_s2', name: 'DAAD Research Scholarship 2025', funder: 'German Academic Exchange Service', country: 'Germany',
-        fundingType: 'Full Funding', amount: '€861–1,200/month + tuition waiver',
-        deadline: '2025-10-15', appStatus: 'Researching',
-        website: 'https://www.daad.de',
-        reqIelts: '6.0', reqGpa: '2.8', reqWorkExp: '0', reqDegree: 'Bachelor',
-        reqDocs: ['SOP', 'CV/Resume', 'LOR', 'Transcript', 'Research Proposal'],
-        otherCriteria: 'Open to applicants from developing countries. Strong research background preferred.',
-        notes: 'Very strong in engineering and sciences.',
-      },
-      {
-        id: 'sch_s3', name: 'Fulbright Foreign Student Program', funder: 'US Government (DOS)', country: 'USA',
-        fundingType: 'Full Funding', amount: 'Full tuition + living stipend + insurance',
-        deadline: '2025-12-01', appStatus: 'Not Started',
-        website: 'https://foreign.fulbrightonline.org',
-        reqIelts: '7.0', reqGpa: '3.0', reqWorkExp: '0', reqDegree: 'Bachelor',
-        reqDocs: ['SOP', 'CV/Resume', 'LOR', 'Transcript', 'IELTS/TOEFL', 'Research Proposal'],
-        otherCriteria: 'Must apply through your home country Fulbright office.',
-        notes: 'Extremely prestigious. Focus on academic excellence and leadership.',
-      },
-    ]);
-  }
+// ── First-run setup ───────────────────────────────────────────
+function maybeShowOnboarding() {
+  const p = Storage.getProfile();
+  if (p.setupDone) return;
+  document.getElementById('onboarding-modal').classList.remove('hidden');
+}
 
-  // Only seed emails if empty (NEW)
-  if (!Storage.getEmails().length) {
-    Storage.setEmails([
-      {
-        id: 'e_s1', toName: 'Dr. R. Lee', toEmail: 'r.lee@stateuniv.edu', type: 'Professor',
-        dateSent: '2024-09-12', subject: 'Research Collaboration Inquiry — Groundwater & ML',
-        docsAttached: 'CV, Research Summary',
-        sentNotes: 'Introduced myself, described my research background in groundwater hydrology, expressed interest in joining his ML/Vision lab.',
-        replyStatus: 'Replied', replyDate: '2024-09-20',
-        docsReceived: 'Lab requirements, Application checklist',
-        replyNotes: 'Very positive response. Interested in my groundwater + ML work. Suggested to apply formally.',
-        followUp: 'No', followUpDate: '',
-      },
-      {
-        id: 'e_s2', toName: 'Chevening Scholarship Office', toEmail: '', type: 'Scholarship',
-        dateSent: '2024-09-25', subject: 'Inquiry about eligibility for Chevening 2025',
-        docsAttached: '',
-        sentNotes: 'Asked about eligibility criteria for candidates from Bangladesh with 1 year work experience.',
-        replyStatus: 'Awaiting', replyDate: '',
-        docsReceived: '', replyNotes: '',
-        followUp: 'Yes', followUpDate: '2024-10-10',
-      },
-    ]);
-  }
+function saveOnboarding(e) {
+  e.preventDefault();
+  const f = e.target;
+  const data = {
+    ...Storage.getProfile(),
+    name: f.name.value.trim() || Storage.getProfile().name,
+    target: f.target.value,
+    stage: f.stage.value,
+    intake: f.intake.value.trim(),
+    fieldOfStudy: f.fieldOfStudy.value.trim() || Storage.getProfile().fieldOfStudy,
+    setupDone: true,
+  };
+  Storage.setProfile(data);
+  document.getElementById('onboarding-modal').classList.add('hidden');
+  updateSidebarProfile(data);
+  switchTab(data.stage === 'Enrolled' ? 'degree' : currentTab);
+}
 
-  // Only seed goals if empty
-  if (!Storage.getGoals().length) {
-    Storage.setGoals([
-      { id: 'g_s1', title: 'Email 20 professors by Nov 15', targetDate: '2025-11-15', priority: 'High', notes: 'Focus on ML, NLP, and Hydrology faculty.', done: false },
-      { id: 'g_s2', title: 'Complete SOP first draft', targetDate: '2025-10-30', priority: 'High', notes: '', done: false },
-      { id: 'g_s3', title: 'Achieve IELTS 7.5', targetDate: '2025-11-01', priority: 'High', notes: '', done: false },
-      { id: 'g_s4', title: 'Submit Chevening application', targetDate: '2025-11-05', priority: 'High', notes: '', done: false },
-      { id: 'g_s5', title: 'Submit 5 university applications', targetDate: '2026-01-15', priority: 'Medium', notes: '', done: false },
-    ]);
+function skipOnboarding() {
+  Storage.setProfile({ ...Storage.getProfile(), setupDone: true });
+  document.getElementById('onboarding-modal').classList.add('hidden');
+}
+
+// Called by Sync when another device changed data.
+function onRemoteChange() {
+  if (document.querySelector('.modal:not(.hidden)')) return;   // don't disrupt an open form
+  updateSidebarProfile(Storage.getProfile());
+  switchTab(currentTab);
+}
+
+// ── Backup nudge (cloud users are already backed up) ──────────
+function backupNudge() {
+  if (Storage.scope !== 'guest') return;
+  const last = Number(localStorage.getItem('hed_last_backup') || 0);
+  const hasData = Storage.getProfessors().length + Storage.getUniversities().length + Storage.getGoals().length > 0;
+  if (hasData && Date.now() - last > 14 * 864e5) {
+    showToast('💾 No backup in 2+ weeks. Data is only in this browser — Export Backup in Data Management.', 'info');
   }
 }
 
 // ── Init ──────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('import-file').addEventListener('change', function () {
     const file = this.files[0];
     if (!file) return;
@@ -193,7 +224,11 @@ document.addEventListener('DOMContentLoaded', () => {
     this.value = '';
   });
 
-  loadSampleData();
+  await Auth.boot();          // resolves once signed in or guest
+
   updateSidebarProfile(Storage.getProfile());
   switchTab('dashboard');
+  maybeShowOnboarding();
+  backupNudge();
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 });

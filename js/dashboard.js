@@ -33,11 +33,20 @@ const Dashboard = {
     const needsFollowUp = emails.filter(e => e.followUp === 'Yes').length;
 
     // ── Upcoming deadlines (unis + scholarships combined) ─────
-    const today = new Date();
+    // Overdue items stay visible while the application is still open —
+    // a missed deadline must never silently disappear from the dashboard.
+    const OPEN_UNI = ['Not Started', 'In Progress'], OPEN_SCH = ['Not Started', 'Researching'];
+    const dg = Degree.summary();
     const allDeadlines = [
-      ...unis.filter(u => u.deadline).map(u => ({ name: u.name, type: 'University', program: u.program, deadline: u.deadline, daysLeft: Math.ceil((new Date(u.deadline) - today) / 86400000) })),
-      ...schs.filter(s => s.deadline).map(s => ({ name: s.name, type: 'Scholarship', program: s.funder, deadline: s.deadline, daysLeft: Math.ceil((new Date(s.deadline) - today) / 86400000) })),
-    ].filter(d => d.daysLeft >= 0).sort((a, b) => a.daysLeft - b.daysLeft).slice(0, 6);
+      ...unis.filter(u => u.deadline).map(u => ({ name: u.name, type: 'University', program: u.program, deadline: u.deadline, daysLeft: daysUntil(u.deadline), open: OPEN_UNI.includes(u.appStatus || 'Not Started') })),
+      ...schs.filter(s => s.deadline).map(s => ({ name: s.name, type: 'Scholarship', program: s.funder, deadline: s.deadline, daysLeft: daysUntil(s.deadline), open: OPEN_SCH.includes(s.appStatus || 'Not Started') })),
+      ...dg.milestones.filter(m => m.due && m.status !== 'Done').map(m => ({ name: m.title, type: 'Milestone', program: m.phase, deadline: m.due, daysLeft: daysUntil(m.due), open: true })),
+    ].filter(d => d.daysLeft !== null && (d.daysLeft >= 0 || d.open)).sort((a, b) => a.daysLeft - b.daysLeft).slice(0, 8);
+    const degreeAlerts = [
+      ...dg.overdue.map(m => `⚠️ Overdue milestone: ${m.title}`),
+      ...dg.fundingEnding.map(f => `💰 ${f.type} from ${f.source} ends ${fmtDate(f.end)}`),
+      ...dg.actions.slice(0, 3).map(a => `☐ ${a.text}`),
+    ];
 
     document.getElementById('tab-dashboard').innerHTML = `
       <div class="dashboard-wrap">
@@ -46,10 +55,10 @@ const Dashboard = {
         <div class="section-header">
           <div>
             <h2 class="section-title">Dashboard</h2>
-            <p class="section-sub">Your higher education journey at a glance${profile.name ? ` — Welcome back, <strong>${profile.name.split(' ')[0]}</strong>!` : ''}</p>
+            <p class="section-sub">Your higher education journey at a glance${profile.name ? ` — Welcome back, <strong>${esc(profile.name.split(' ')[0])}</strong>!` : ''}</p>
           </div>
           <div style="display:flex;gap:0.5rem;align-items:center;">
-            <button class="btn btn-outline btn-sm" onclick="openProfileModal()">👤 ${profile.ielts ? `IELTS ${profile.ielts}` : 'Set Profile'}</button>
+            <button class="btn btn-outline btn-sm" onclick="openProfileModal()">👤 ${profile.ielts ? `IELTS ${esc(profile.ielts)}` : 'Set Profile'}</button>
             <span class="badge badge-navy">${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
           </div>
         </div>
@@ -147,21 +156,27 @@ const Dashboard = {
           </div>
         </div>
 
+        ${degreeAlerts.length ? `
+        <div class="deadlines-card" onclick="switchTab('degree')" style="cursor:pointer;">
+          <h3 class="chart-title">🎓 Degree — needs attention</h3>
+          <ul class="alert-list">${degreeAlerts.map(a => `<li>${esc(a)}</li>`).join('')}</ul>
+        </div>` : ''}
+
         <!-- Upcoming Deadlines -->
         <div class="deadlines-card">
-          <h3 class="chart-title">⏰ Upcoming Deadlines <span style="font-size:0.75rem;font-weight:400;color:var(--text-muted);">(Universities + Scholarships)</span></h3>
+          <h3 class="chart-title">⏰ Upcoming Deadlines <span style="font-size:0.75rem;font-weight:400;color:var(--text-muted);">(Universities · Scholarships · Milestones)</span></h3>
           ${allDeadlines.length === 0
             ? '<p class="empty-msg">No upcoming deadlines. Add universities or scholarships with deadlines to see them here.</p>'
             : `<div class="deadline-list">
                 ${allDeadlines.map(d => `
                   <div class="deadline-item">
                     <div class="deadline-info">
-                      <span class="deadline-uni">${d.type === 'Scholarship' ? '🏆' : '🏛️'} ${d.name}</span>
-                      <span class="deadline-prog">${d.program || ''}</span>
+                      <span class="deadline-uni">${{ Scholarship: '🏆', Milestone: '🎯' }[d.type] || '🏛️'} ${esc(d.name)}</span>
+                      <span class="deadline-prog">${esc(d.program || '')}</span>
                     </div>
                     <div class="deadline-right">
-                      <span class="deadline-date">${new Date(d.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                      <span class="deadline-days ${d.daysLeft <= 30 ? 'urgent' : d.daysLeft <= 60 ? 'warning' : 'safe'}">${d.daysLeft}d left</span>
+                      <span class="deadline-date">${fmtDate(d.deadline)}</span>
+                      <span class="deadline-days ${d.daysLeft <= 30 ? 'urgent' : d.daysLeft <= 60 ? 'warning' : 'safe'}">${d.daysLeft < 0 ? `${-d.daysLeft}d overdue` : d.daysLeft === 0 ? 'today' : `${d.daysLeft}d left`}</span>
                     </div>
                   </div>`).join('')}
               </div>`

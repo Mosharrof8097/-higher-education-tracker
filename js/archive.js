@@ -64,7 +64,7 @@ const Archive = {
   },
 
   async loadAndRender(search = '', tag = 'All', status = 'All') {
-    this.docs = await DB.getAllMeta();
+    this.docs = await Files.list();
     this.renderGrid(this.docs, search, tag, status);
     this.updateStorageBar();
   },
@@ -87,13 +87,13 @@ const Archive = {
     }
 
     grid.innerHTML = filtered.map(d => `
-      <div class="archive-card" id="doc-${d.id}">
+      <div class="archive-card" id="doc-${esc(d.id)}">
         <div class="archive-card-icon">${this.fileIcon(d.mimeType)}</div>
         <div class="archive-card-body">
-          <div class="archive-card-name" title="${d.name}">${d.name}</div>
+          <div class="archive-card-name" title="${esc(d.name)}">${esc(d.name)}</div>
           <div class="archive-card-meta">
-            <span class="badge ${this.tagColor(d.tag)}">${d.tag || 'Other'}</span>
-            <span class="badge ${this.statusBadge(d.status)}">${d.status || 'Draft'}</span>
+            <span class="badge ${this.tagColor(d.tag)}">${esc(d.tag || 'Other')}</span>
+            <span class="badge ${this.statusBadge(d.status)}">${esc(d.status || 'Draft')}</span>
           </div>
           <div class="archive-card-info">
             <span>${this.formatSize(d.size)}</span>
@@ -101,9 +101,9 @@ const Archive = {
           </div>
         </div>
         <div class="archive-card-actions">
-          <button class="btn btn-sm btn-primary" onclick="DB.downloadFile('${d.id}')">⬇️ Download</button>
-          <button class="btn btn-sm btn-outline" onclick="Archive.editMeta('${d.id}')">✏️ Edit</button>
-          <button class="btn btn-sm btn-danger" onclick="Archive.deleteDoc('${d.id}')">🗑️</button>
+          <button class="btn btn-sm btn-primary" onclick="Files.download('${esc(d.id)}')">⬇️ Download</button>
+          <button class="btn btn-sm btn-outline" onclick="Archive.editMeta('${esc(d.id)}')">✏️ Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="Archive.deleteDoc('${esc(d.id)}')">🗑️</button>
         </div>
       </div>`).join('');
   },
@@ -117,33 +117,39 @@ const Archive = {
     const text = document.getElementById('upload-progress-text');
     progress.classList.remove('hidden');
 
+    let uploaded = 0;
+    const failures = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       text.textContent = `Uploading ${i + 1}/${files.length}: ${file.name}`;
       bar.style.width = `${Math.round(((i) / files.length) * 100)}%`;
 
-      const tag = this.guessTag(file.name);
       const id = `doc_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       const meta = {
         id,
         name: file.name,
         mimeType: file.type || 'application/octet-stream',
         size: file.size,
-        tag,
+        tag: this.guessTag(file.name),
         status: 'Draft',
         uploadDate: new Date().toISOString(),
         notes: '',
       };
 
-      const buffer = await file.arrayBuffer();
-      await DB.saveFile(meta, buffer);
+      try {
+        const res = await Files.save(meta, file);
+        if (res.ok) uploaded++; else failures.push(res.reason);
+      } catch (e) {
+        failures.push(`"${file.name}": ${(e && e.message) || 'upload failed'}`);
+      }
       bar.style.width = `${Math.round(((i + 1) / files.length) * 100)}%`;
     }
 
     progress.classList.add('hidden');
     bar.style.width = '0%';
     input.value = '';
-    showToast(`✅ ${files.length} file(s) uploaded!`, 'success');
+    if (uploaded) showToast(`✅ ${uploaded} file(s) uploaded!`, 'success');
+    failures.forEach(msg => showToast(`❌ ${msg}`, 'error'));
     await this.loadAndRender();
   },
 
@@ -158,16 +164,21 @@ const Archive = {
     const statuses = ['Final', 'Draft', 'Pending'];
     const statusStr = prompt(`Status (${statuses.join(', ')}):`, doc.status || 'Draft');
 
-    const record = await DB.getFile(id);
-    if (!record) return;
-    await DB.saveFile({ ...record, name: newName || doc.name, tag: tagStr || 'Other', status: statusStr || 'Draft' }, record.data);
+    const pick = (val, allowed, fallback) =>
+      allowed.find(a => a.toLowerCase() === String(val || '').trim().toLowerCase()) || fallback;
+    const ok = await Files.updateMeta(id, {
+      name: newName.trim() || doc.name,
+      tag: pick(tagStr, tags, doc.tag || 'Other'),
+      status: pick(statusStr, statuses, doc.status || 'Draft'),
+    });
+    if (!ok) return showToast('❌ Could not update this document.', 'error');
     showToast('✅ Document updated!', 'success');
     await this.loadAndRender();
   },
 
   async deleteDoc(id) {
     if (!confirm('Delete this document? This cannot be undone.')) return;
-    await DB.deleteFile(id);
+    if (!(await Files.remove(id))) return;
     showToast('🗑️ Document deleted.', 'info');
     await this.loadAndRender();
   },
@@ -192,7 +203,7 @@ const Archive = {
     const bar = document.getElementById('archive-storage-bar');
     if (!bar) return;
     const totalSize = this.docs.reduce((sum, d) => sum + (d.size || 0), 0);
-    bar.innerHTML = `<span>📦 ${this.docs.length} document(s) · ${this.formatSize(totalSize)} used · Stored in browser (IndexedDB)</span>`;
+    bar.innerHTML = `<span>📦 ${this.docs.length} document(s) · ${this.formatSize(totalSize)} used · ${Files.where()}</span>`;
   },
 
   // Helpers
@@ -234,7 +245,7 @@ const Archive = {
 
   // Called by cross-checker to get list of uploaded doc types
   async getUploadedDocTypes() {
-    const docs = await DB.getAllMeta();
+    const docs = await Files.list();
     return docs.map(d => ({ id: d.id, name: d.name, tag: d.tag, status: d.status }));
   },
 };

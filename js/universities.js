@@ -110,8 +110,8 @@ const Universities = {
                 <div class="req-checks">
                   ${['SOP', 'CV/Resume', 'LOR', 'Transcript', 'IELTS', 'GRE', 'Research Proposal', 'Writing Sample'].map(r => `
                     <label class="req-check-label">
-                      <input type="checkbox" name="req_${r.replace(/\//g, '_').replace(/ /g, '_')}" value="${r}">
-                      ${r}
+                      <input type="checkbox" name="req_${r.replace(/\//g, '_').replace(/ /g, '_')}" value="${esc(r)}">
+                      ${esc(r)}
                     </label>`).join('')}
                 </div>
               </div>
@@ -142,7 +142,7 @@ const Universities = {
 
     return filtered.map(u => {
       const today = new Date();
-      const daysLeft = u.deadline ? Math.ceil((new Date(u.deadline) - today) / 86400000) : null;
+      const daysLeft = u.deadline ? daysUntil(u.deadline) : null;
       const reqs = u.requirements || [];
       const reqTotal = 8;
 
@@ -150,34 +150,34 @@ const Universities = {
         <div class="uni-card">
           <div class="uni-card-header">
             <div>
-              <h3 class="uni-name">${u.name}</h3>
-              <p class="uni-country">📍 ${u.country || 'Unknown'}</p>
+              <h3 class="uni-name">${esc(u.name)}</h3>
+              <p class="uni-country">📍 ${esc(u.country || 'Unknown')}</p>
             </div>
-            <span class="badge ${this.statusClass(u.appStatus)}">${u.appStatus || 'Not Started'}</span>
+            <span class="badge ${this.statusClass(u.appStatus)}">${esc(u.appStatus || 'Not Started')}</span>
           </div>
-          <p class="uni-program">🎓 ${u.program || '—'}</p>
-          ${u.duration ? `<p class="uni-detail">⏱️ ${u.duration}</p>` : ''}
-          ${u.tuition ? `<p class="uni-detail">💰 ${u.tuition}</p>` : ''}
-          ${u.deadline ? `<p class="uni-detail ${daysLeft !== null && daysLeft < 30 ? 'text-urgent' : ''}">📅 Deadline: ${new Date(u.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} ${daysLeft !== null ? `(${daysLeft}d left)` : ''}</p>` : ''}
-          ${u.ielts ? `<p class="uni-detail">🗣️ IELTS min: ${u.ielts}</p>` : ''}
-          ${u.gre ? `<p class="uni-detail">📝 GRE: ${u.gre}</p>` : ''}
+          <p class="uni-program">🎓 ${esc(u.program || '—')}</p>
+          ${u.duration ? `<p class="uni-detail">⏱️ ${esc(u.duration)}</p>` : ''}
+          ${u.tuition ? `<p class="uni-detail">💰 ${esc(u.tuition)}</p>` : ''}
+          ${u.deadline ? `<p class="uni-detail ${daysLeft !== null && daysLeft < 30 ? 'text-urgent' : ''}">📅 Deadline: ${fmtDate(u.deadline)} ${daysLeft !== null ? `(${daysLeft}d left)` : ''}</p>` : ''}
+          ${u.ielts ? `<p class="uni-detail">🗣️ IELTS min: ${esc(u.ielts)}</p>` : ''}
+          ${u.gre ? `<p class="uni-detail">📝 GRE: ${esc(u.gre)}</p>` : ''}
 
           <!-- Req badges -->
           <div class="req-badges">
-            ${reqs.map(r => `<span class="req-badge req-done">✓ ${r}</span>`).join('')}
+            ${reqs.map(r => `<span class="req-badge req-done">✓ ${esc(r)}</span>`).join('')}
           </div>
 
           <!-- Links -->
           <div class="uni-links">
-            ${u.website ? `<a href="${u.website}" target="_blank" class="table-link">🌐 Website</a>` : ''}
-            ${u.portalUrl ? `<a href="${u.portalUrl}" target="_blank" class="table-link">📋 Apply</a>` : ''}
+            ${u.website ? `<a href="${safeUrl(u.website)}" target="_blank" class="table-link">🌐 Website</a>` : ''}
+            ${u.portalUrl ? `<a href="${safeUrl(u.portalUrl)}" target="_blank" class="table-link">📋 Apply</a>` : ''}
           </div>
 
-          ${u.notes ? `<p class="uni-notes">${u.notes}</p>` : ''}
+          ${u.notes ? `<p class="uni-notes">${esc(u.notes)}</p>` : ''}
 
           <div class="uni-card-footer">
-            <button class="btn btn-sm btn-outline" onclick="Universities.openModal('${u.id}')">✏️ Edit</button>
-            <button class="btn btn-sm btn-danger" onclick="Universities.delete('${u.id}')">🗑️ Delete</button>
+            <button class="btn btn-sm btn-outline" onclick="Universities.openModal('${esc(u.id)}')">✏️ Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="Universities.delete('${esc(u.id)}')">🗑️ Delete</button>
           </div>
         </div>`;
     }).join('');
@@ -215,7 +215,7 @@ const Universities = {
         });
         // Restore req checkboxes
         (u.requirements || []).forEach(r => {
-          const cb = form.querySelector(`input[value="${r}"]`);
+          const cb = form.querySelector(`input[value="${esc(r)}"]`);
           if (cb) cb.checked = true;
         });
       }
